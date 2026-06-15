@@ -6,27 +6,17 @@ services:
     image: taskservice:local
     container_name: taskservice
     depends_on:
-      - sqlserver
       - rabbitmq
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__TaskDbConnection: Server=sqlserver;Database=TaskDB;User Id=sa;Password=Haiquan@123456;TrustServerCertificate=True;
+      ConnectionStrings__TaskDbConnection: Server=103.178.235.78,14333;Database=TaskDB;User Id=haiquan;Password=haiquan123456;TrustServerCertificate=True;
       RabbitMQ__Host: rabbitmq
       RabbitMQ__Username: guest
       RabbitMQ__Password: guest
     ports:
       - "5002:5002"
 
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: task-sqlserver
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Haiquan@123456"
-    ports:
-      - "1434:1433"
-    volumes:
-      - sqlserver_data:/var/opt/mssql
+
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -35,5 +25,3 @@ services:
       - "5673:5672"
       - "15673:15672"
 
-volumes:
-  sqlserver_data:
