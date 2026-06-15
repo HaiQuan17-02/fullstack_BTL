@@ -19,16 +19,15 @@ fi
 cd "$REPO_DIR/TaskService"
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "Installing Docker..."
-  sudo apt update
-  sudo apt install -y ca-certificates curl gnupg lsb-release
+  echo "Installing Docker (includes Compose plugin)..."
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker "$USER"
 fi
 
+# Verify docker compose is available (included in modern Docker installs)
 if ! docker compose version >/dev/null 2>&1; then
-  echo "Installing Docker Compose plugin..."
-  sudo apt install -y docker-compose-plugin
+  echo "Docker Compose plugin not found, reinstalling Docker..."
+  curl -fsSL https://get.docker.com | sh
 fi
 
 sudo docker compose up -d --build
