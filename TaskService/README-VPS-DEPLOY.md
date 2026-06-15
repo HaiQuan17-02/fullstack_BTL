@@ -10,10 +10,22 @@ PowerShell:
 Compress-Archive -Path .\TaskService -DestinationPath .\taskservice.zip -Force
 ```
 
-## 2. Upload lên VPS
+## 2. Clone repo từ GitHub trên VPS
 
-```powershell
-scp -P  .\taskservice.zip abcxyz@103.178.235.78:/home/abcxyz/
+Sau khi SSH vào VPS, chạy:
+
+```bash
+cd /home/abcxyz
+git clone https://github.com/HaiQuan17-02/fullstack_BTL.git
+cd /home/abcxyz/fullstack_BTL/TaskService
+```
+
+Nếu repo đã có sẵn, dùng:
+
+```bash
+cd /home/abcxyz/fullstack_BTL
+git pull origin main
+cd TaskService
 ```
 
 ## 3. Kết nối VPS
@@ -89,16 +101,14 @@ Ngoài ra, trên panel VPS/Cloud Firewall của nhà cung cấp, hãy mở port 
 ## 5. Chạy script deploy trên VPS
 
 ```bash
-cd /home/abcxyz
-chmod +x deploy-vps.sh
-./deploy-vps.sh
+cd /home/abcxyz/fullstack_BTL/TaskService
+chmod +x deploy-vps-git.sh
+./deploy-vps-git.sh
 ```
 
-Nếu script chưa có sẵn trên VPS, bạn có thể chạy trực tiếp:
+Hoặc chạy trực tiếp:
 
 ```bash
-cd /home/abcxyz
-unzip -o taskservice.zip
-cd TaskService
+cd /home/abcxyz/fullstack_BTL/TaskService
 sudo docker compose up -d --build
 ```
