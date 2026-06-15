@@ -1,0 +1,39 @@
+services:
+  taskservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: taskservice:local
+    container_name: taskservice
+    depends_on:
+      - sqlserver
+      - rabbitmq
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__TaskDbConnection: Server=sqlserver;Database=TaskDB;User Id=sa;Password=Haiquan@123456;TrustServerCertificate=True;
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Username: guest
+      RabbitMQ__Password: guest
+    ports:
+      - "8080:8080"
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: task-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Haiquan@123456"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: task-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  sqlserver_data:
