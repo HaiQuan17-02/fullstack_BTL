@@ -7,6 +7,18 @@ echo "=============================="
 echo "  SEED DATA - TaskService"
 echo "=============================="
 
+# Đợi API sẵn sàng (tối đa 90 giây)
+echo "⏳ Đợi API khởi động..."
+for i in $(seq 1 18); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5002/api/board 2>/dev/null || true)
+  if [ "$STATUS" = "200" ]; then
+    echo "✅ API sẵn sàng!"
+    break
+  fi
+  echo "   Lần $i: API chưa ready (status=$STATUS), đợi 5 giây..."
+  sleep 5
+done
+
 # ─── Helpers ─────────────────────────────────────────────────────
 uuid() { cat /proc/sys/kernel/random/uuid; }
 future() { date -d "+${1} days" -u +%Y-%m-%dT%H:%M:%SZ; }
