@@ -34,4 +34,4 @@ sudo docker compose up -d --build
 
 echo "Deployment finished."
 echo "API: http://103.178.235.78:5002"
-echo "RabbitMQ UI: http://103.178.235.78:15672"
+echo "RabbitMQ UI: http://103.178.235.78:15673"

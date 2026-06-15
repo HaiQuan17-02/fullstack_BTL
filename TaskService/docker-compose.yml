@@ -24,7 +24,7 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Haiquan@123456"
     ports:
-      - "1433:1433"
+      - "1434:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
 
@@ -32,8 +32,8 @@ services:
     image: rabbitmq:3-management
     container_name: task-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5673:5672"
+      - "15673:15672"
 
 volumes:
   sqlserver_data:
