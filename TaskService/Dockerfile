@@ -10,6 +10,6 @@ RUN dotnet publish "TaskService.csproj" -c Release -o /app/publish /p:UseAppHost
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 5002
+ENV ASPNETCORE_URLS=http://+:5002
 ENTRYPOINT ["dotnet", "TaskService.dll"]

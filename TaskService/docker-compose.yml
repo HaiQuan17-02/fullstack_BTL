@@ -15,7 +15,7 @@ services:
       RabbitMQ__Username: guest
       RabbitMQ__Password: guest
     ports:
-      - "8080:8080"
+      - "5002:5002"
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
