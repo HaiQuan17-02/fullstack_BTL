@@ -14,7 +14,7 @@ public sealed class TaskItem
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public Board Board { get; set; } = null!;
+    public Board? Board { get; set; }
     public ICollection<SubTask> SubTasks { get; set; } = new List<SubTask>();
     public ICollection<WorkLog> WorkLogs { get; set; } = new List<WorkLog>();
 }

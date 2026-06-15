@@ -8,5 +8,5 @@ public sealed class SubTask
     public bool IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public TaskItem TaskItem { get; set; } = null!;
+    public TaskItem? TaskItem { get; set; }
 }

@@ -9,5 +9,5 @@ public sealed class WorkLog
     public DateTime LoggedAt { get; set; } = DateTime.UtcNow;
     public string? Note { get; set; }
 
-    public TaskItem TaskItem { get; set; } = null!;
+    public TaskItem? TaskItem { get; set; }
 }
