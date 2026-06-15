@@ -1,78 +1,148 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API="http://localhost:5002/api/task"
+BASE="http://localhost:5002/api"
 
-echo "Fetching BoardId..."
-BOARD_ID=$(curl -s "$API" | python3 -c "
-import sys, json
-tasks = json.load(sys.stdin)
-if tasks:
-    print(tasks[0]['boardId'])
-else:
-    print('')
-")
+echo "=============================="
+echo "  SEED DATA - TaskService"
+echo "=============================="
 
-if [ -z "$BOARD_ID" ]; then
-  echo "ERROR: Không lấy được BoardId. Kiểm tra API có chạy không: curl $API"
-  exit 1
-fi
+# ─── Helpers ─────────────────────────────────────────────────────
+uuid() { cat /proc/sys/kernel/random/uuid; }
+future() { date -d "+${1} days" -u +%Y-%m-%dT%H:%M:%SZ; }
 
-echo "BoardId: $BOARD_ID"
-echo ""
-
-add_task() {
-  local TITLE="$1"
-  local DESC="$2"
-  local PRIORITY="$3"
-  local COLOR="$4"
-  local STATUS="$5"
-  local DAYS="$6"
-  local DEADLINE
-  DEADLINE=$(date -d "+${DAYS} days" -u +%Y-%m-%dT%H:%M:%SZ)
-  local ASSIGNEE
-  ASSIGNEE=$(cat /proc/sys/kernel/random/uuid)
-
-  curl -s -X POST "$API" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"boardId\": \"$BOARD_ID\",
-      \"title\": \"$TITLE\",
-      \"description\": \"$DESC\",
-      \"priority\": $PRIORITY,
-      \"colorLabel\": \"$COLOR\",
-      \"currentStatus\": $STATUS,
-      \"assigneeId\": \"$ASSIGNEE\",
-      \"deadline\": \"$DEADLINE\"
-    }" > /dev/null
-
-  echo "  ✅ $TITLE"
+post() {
+  local url="$1"
+  local body="$2"
+  curl -s -X POST "$url" -H "Content-Type: application/json" -d "$body"
 }
 
-echo "Thêm tasks..."
-# Status: 0=Backlog, 1=ToDo, 2=InProgress, 3=Review, 4=Done
+# ─── 1. Board ────────────────────────────────────────────────────
+echo ""
+echo "[ 1/4 ] Kiểm tra Board..."
+EXISTING_BOARDS=$(curl -s "$BASE/board" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))")
+echo "        Hiện có $EXISTING_BOARDS board(s)"
 
-add_task "Triển khai CI/CD pipeline"        "Cấu hình GitHub Actions tự động build và deploy lên VPS."   3 "#EF4444" 1 7
-add_task "Viết unit test TaskRepository"    "Coverage tối thiểu 80% cho các hàm CRUD."                  2 "#8B5CF6" 2 4
-add_task "Tích hợp Swagger UI đầy đủ"      "Thêm annotation mô tả cho từng endpoint."                   1 "#10B981" 4 1
-add_task "Docker Compose production"        "Tách môi trường dev/prod, thêm health check."               3 "#F59E0B" 3 10
-add_task "Thiết kế database schema v2"      "Thêm bảng Comment và Attachment cho TaskItem."              2 "#06B6D4" 0 14
-add_task "Tối ưu query N+1 EF Core"        "Dùng Include() và AsNoTracking() đúng chỗ."                 2 "#EF4444" 2 3
-add_task "Thêm authentication JWT"          "Bảo vệ các endpoint với Bearer token."                      3 "#F97316" 1 20
-add_task "Viết tài liệu API"               "Mô tả đầy đủ request/response cho từng endpoint."           1 "#10B981" 4 2
-add_task "Load testing với k6"             "Kiểm tra API chịu tải 1000 concurrent users."               2 "#8B5CF6" 0 30
-add_task "Review pull request RabbitMQ"    "Kiểm tra logic xử lý consumer và error handling."           1 "#06B6D4" 3 1
-add_task "Xử lý lỗi global middleware"     "Thêm exception handler trả về chuẩn ProblemDetails."        2 "#F59E0B" 2 5
-add_task "Cấu hình logging Serilog"        "Ghi log ra file và console theo cấu trúc JSON."             1 "#3B82F6" 1 8
-add_task "Refactor repository pattern"     "Tách interface rõ ràng, áp dụng generic repository."        2 "#8B5CF6" 0 15
-add_task "Thêm validation FluentValidation" "Validate request body trước khi xử lý business logic."     3 "#EF4444" 1 6
-add_task "Setup môi trường staging"        "Tạo VPS staging riêng biệt với data test."                  2 "#06B6D4" 2 12
-add_task "Cập nhật README dự án"           "Hướng dẫn setup local và deploy production."                1 "#10B981" 4 1
-add_task "Thêm pagination cho GET all"     "Hỗ trợ ?page=1&pageSize=20 cho danh sách task."             2 "#3B82F6" 3 9
-add_task "Kiểm tra bảo mật SQL injection"  "Rà soát toàn bộ query, đảm bảo dùng parameterized."        3 "#F97316" 0 25
+if [ "$EXISTING_BOARDS" -eq 0 ]; then
+  echo "        Tạo board mới..."
+  BOARD_RAW=$(post "$BASE/board" '{"name":"Sprint Board - BTL Fullstack","description":"Bảng quản lý công việc cho đồ án fullstack semester 3."}')
+  BOARD_ID=$(echo "$BOARD_RAW" | python3 -c "import sys,json; print(json.load(sys.stdin)['boardId'])")
+  echo "        ✅ Board tạo: $BOARD_ID"
+else
+  BOARD_ID=$(curl -s "$BASE/board" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['boardId'])")
+  echo "        Dùng BoardId: $BOARD_ID"
+fi
+
+# ─── 2. Tasks ────────────────────────────────────────────────────
+echo ""
+echo "[ 2/4 ] Thêm Tasks..."
+
+add_task() {
+  local TITLE="$1" DESC="$2" PRIORITY="$3" COLOR="$4" STATUS="$5" DAYS="$6"
+  local RESULT
+  RESULT=$(post "$BASE/task" "{
+    \"boardId\": \"$BOARD_ID\",
+    \"title\": \"$TITLE\",
+    \"description\": \"$DESC\",
+    \"priority\": $PRIORITY,
+    \"colorLabel\": \"$COLOR\",
+    \"currentStatus\": $STATUS,
+    \"assigneeId\": \"$(uuid)\",
+    \"deadline\": \"$(future $DAYS)\"
+  }")
+  echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print('        ✅ Task:', d['title'], '|', d['taskId'])"
+  echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['taskId'])"
+}
+
+# Status: 0=Backlog 1=ToDo 2=InProgress 3=Review 4=Done
+T1=$(add_task "Thiết kế hệ thống microservice"  "Phân tích yêu cầu, vẽ diagram kiến trúc hệ thống."      3 "#EF4444" 2 10 | tail -1)
+T2=$(add_task "Xây dựng TaskService API"          "Implement CRUD endpoints cho Task, Board, SubTask."      3 "#3B82F6" 2 7  | tail -1)
+T3=$(add_task "Tích hợp RabbitMQ message bus"    "Publish/consume event khi task thay đổi trạng thái."    2 "#8B5CF6" 3 5  | tail -1)
+T4=$(add_task "Viết unit test với xUnit"          "Coverage tối thiểu 80% cho repository và service."      2 "#F59E0B" 1 14 | tail -1)
+T5=$(add_task "Deploy lên VPS với Docker"         "Cấu hình docker-compose, nginx reverse proxy."          3 "#10B981" 4 3  | tail -1)
+T6=$(add_task "Thiết kế giao diện Kanban board"   "Dùng React kéo thả task giữa các cột trạng thái."      2 "#06B6D4" 2 8  | tail -1)
+T7=$(add_task "Thêm authentication JWT"           "Đăng nhập, đăng ký, refresh token, phân quyền role."   3 "#F97316" 1 20 | tail -1)
+T8=$(add_task "Cấu hình CI/CD GitHub Actions"     "Auto build, test và deploy khi push lên main branch."  2 "#8B5CF6" 0 30 | tail -1)
 
 echo ""
-TOTAL=$(curl -s "$API" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
-echo "============================="
-echo "✅ Hoàn thành! Tổng số task: $TOTAL"
-echo "============================="
+TOTAL_TASKS=$(curl -s "$BASE/task" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+echo "        Tổng tasks: $TOTAL_TASKS"
+
+# ─── 3. SubTasks ─────────────────────────────────────────────────
+echo ""
+echo "[ 3/4 ] Thêm SubTasks..."
+
+add_subtask() {
+  local TASK_ID="$1" TITLE="$2" DONE="$3"
+  post "$BASE/task/$TASK_ID/subtasks" "{\"title\": \"$TITLE\", \"isCompleted\": $DONE}" | \
+    python3 -c "import sys,json; d=json.load(sys.stdin); print('        ✅ SubTask:', d['title'])" 2>/dev/null || \
+    echo "        ⚠️  SubTask skip: $TITLE"
+}
+
+add_subtask "$T1" "Vẽ use case diagram"              "true"
+add_subtask "$T1" "Phân tích database schema"        "true"
+add_subtask "$T1" "Định nghĩa API contract"          "false"
+
+add_subtask "$T2" "Tạo Board CRUD endpoints"         "true"
+add_subtask "$T2" "Tạo Task CRUD endpoints"          "true"
+add_subtask "$T2" "Tạo SubTask endpoints"            "true"
+add_subtask "$T2" "Tạo WorkLog endpoints"            "false"
+add_subtask "$T2" "Viết Swagger documentation"       "false"
+
+add_subtask "$T3" "Cài đặt MassTransit"             "true"
+add_subtask "$T3" "Publish TaskStatusChanged event"  "true"
+add_subtask "$T3" "Test consumer nhận event"         "false"
+
+add_subtask "$T4" "Test BoardRepository"             "false"
+add_subtask "$T4" "Test TaskItemRepository"          "false"
+add_subtask "$T4" "Test WorkLogRepository"           "false"
+
+add_subtask "$T5" "Viết Dockerfile"                  "true"
+add_subtask "$T5" "Cấu hình docker-compose"          "true"
+add_subtask "$T5" "Deploy và kiểm tra trên VPS"      "true"
+
+add_subtask "$T6" "Thiết kế mockup Figma"            "true"
+add_subtask "$T6" "Implement drag & drop"            "false"
+add_subtask "$T6" "Kết nối API thực"                 "false"
+
+add_subtask "$T7" "Tạo bảng Users trong DB"          "false"
+add_subtask "$T7" "Implement JWT middleware"         "false"
+
+add_subtask "$T8" "Viết workflow file"               "false"
+add_subtask "$T8" "Test pipeline chạy đúng"          "false"
+
+# ─── 4. WorkLogs ─────────────────────────────────────────────────
+echo ""
+echo "[ 4/4 ] Thêm WorkLogs..."
+
+add_worklog() {
+  local TASK_ID="$1" HOURS="$2" NOTE="$3"
+  post "$BASE/task/$TASK_ID/worklogs" "{
+    \"memberId\": \"$(uuid)\",
+    \"hoursSpent\": $HOURS,
+    \"note\": \"$NOTE\"
+  }" | python3 -c "import sys,json; d=json.load(sys.stdin); print('        ✅ WorkLog:', d['hoursSpent'],'h -', d['note'])" 2>/dev/null || \
+    echo "        ⚠️  WorkLog skip"
+}
+
+add_worklog "$T1" "3.5" "Hoàn thành vẽ diagram kiến trúc hệ thống"
+add_worklog "$T1" "2.0" "Review và chỉnh sửa database schema"
+add_worklog "$T2" "4.0" "Implement Board và Task controller"
+add_worklog "$T2" "3.0" "Fix lỗi N+1 query trong GetAll"
+add_worklog "$T2" "2.5" "Thêm SubTask và WorkLog controller"
+add_worklog "$T3" "2.0" "Cấu hình MassTransit với RabbitMQ"
+add_worklog "$T3" "1.5" "Test publish event thành công"
+add_worklog "$T5" "1.5" "Viết Dockerfile và docker-compose"
+add_worklog "$T5" "2.0" "Debug lỗi Alpine ICU globalization"
+add_worklog "$T5" "0.5" "Deploy thành công lên VPS"
+add_worklog "$T6" "3.0" "Thiết kế mockup giao diện Kanban"
+add_worklog "$T7" "1.0" "Nghiên cứu JWT authentication flow"
+
+# ─── Summary ─────────────────────────────────────────────────────
+echo ""
+echo "=============================="
+echo "✅ SEED HOÀN THÀNH!"
+TASKS=$(curl -s "$BASE/task" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+echo "   📋 Tasks    : $TASKS"
+echo "   🗂️  SubTasks : $(curl -s "$BASE/task/$(curl -s "$BASE/task" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['taskId'])")/subtasks" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))") (task đầu tiên)"
+echo "=============================="
